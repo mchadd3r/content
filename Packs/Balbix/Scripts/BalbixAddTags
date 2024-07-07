@@ -1,0 +1,59 @@
+import demistomock as demisto  # noqa
+from CommonServerPython import *  # noqa
+
+"""Base Script for Cortex XSOAR
+This is an empty script with some basic structure according
+to the code conventions.
+MAKE SURE YOU REVIEW/REPLACE ALL THE COMMENTS MARKED AS "TODO"
+"""
+
+from typing import Dict, Any
+import traceback
+
+
+''' STANDALONE FUNCTION '''
+
+
+def assign_tags_to_incident() -> None:
+    """
+    Extract Tags from the Balbix.Assets context and assign them to the current incident.
+    """
+    tags = demisto.context().get("Balbix", {}).get("Assets", {}).get("TAGS", [])
+    
+    if tags:
+        tags_str = ",".join(tags)
+        demisto.executeCommand("setIncident", {"tags": tags_str})
+    else:
+        demisto.results("No tags found in the Balbix asset details.")
+
+
+''' COMMAND FUNCTION '''
+
+
+def assign_tags_command(args: Dict[str, Any]) -> CommandResults:
+    """
+    Command function to extract Tags from the context and assign them to the incident.
+    """
+    assign_tags_to_incident()
+
+    return CommandResults(
+        readable_output='Tags have been assigned to the incident.'
+    )
+
+
+''' MAIN FUNCTION '''
+
+
+def main():
+    try:
+        return_results(assign_tags_command(demisto.args()))
+    except Exception as ex:
+        demisto.error(traceback.format_exc())  # print the traceback
+        return_error(f'Failed to execute assign_tags_command. Error: {str(ex)}')
+
+
+''' ENTRY POINT '''
+
+
+if __name__ in ('__main__', '__builtin__', 'builtins'):
+    main()

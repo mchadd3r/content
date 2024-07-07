@@ -1,0 +1,129 @@
+category: Data Enrichment & Threat Intelligence
+commonfields:
+  id: Balbix
+  version: -1
+configuration:
+- defaultvalue: https://example.com/
+  display: Your server URL
+  name: url
+  required: true
+  type: 0
+- displaypassword: API Key
+  additionalinfo: The API Key to use for connection
+  name: credentials
+  required: true
+  hiddenusername: true
+  type: 9
+- display: Trust any certificate (not secure)
+  name: insecure
+  type: 8
+  required: false
+- display: Use system proxy settings
+  name: proxy
+  type: 8
+  required: false
+description: 'Balbix AI-powered Cyber Risk Management provides comprehensive asset enrichment and vulnerability prioritization for your SOC.'
+display: Balbix
+name: Balbix
+script:
+  commands:
+  - arguments:
+    - description: 'The hostname of the asset to search for.'
+      name: hostname
+      required: true
+    description: 'Searches for an Asset in Balbix'
+    name: balbix-get-asset-details
+    outputs:
+    - contextPath: Balbix.Assets.NAME
+      description: 'Asset Name'
+      type: String
+    - contextPath: Balbix.Assets.IMPACT
+      description: 'Asset Impact'
+      type: Number
+    - contextPath: Balbix.Assets.LIKELIHOOD
+      description: 'Asset Likelihood'
+      type: Number
+    - contextPath: Balbix.Assets.RISK
+      description: 'Asset Risk'
+      type: Number
+    - contextPath: Balbix.Assets.MACAddresses
+      description: 'Asset MAC Addresses'
+      type: String
+    - contextPath: Balbix.Assets.IPAddresses
+      description: 'Asset IP Addresses'
+      type: String
+    - contextPath: Balbix.Assets.SerialNumber
+      description: 'Asset Serial Number'
+      type: String
+    - contextPath: Balbix.Assets.GeoLocation
+      description: 'Asset Geo Location'
+      type: String
+    - contextPath: Balbix.Assets.AssetType
+      description: 'Asset Type'
+      type: String
+    - contextPath: Balbix.Assets.AssetSubType
+      description: 'Asset Subtype'
+      type: String
+    - contextPath: Balbix.Assets.OperatingSystem
+      description: 'Asset Operating System'
+      type: String
+    - contextPath: Balbix.Assets.OSPatchStatus
+      description: 'OS Patch Status'
+      type: String
+    - contextPath: Balbix.Assets.LastPatchDate
+      description: 'Last Patch Date'
+      type: Date
+    - contextPath: Balbix.Assets.Manufacturer
+      description: 'Asset Manufacturer'
+      type: String
+    - contextPath: Balbix.Assets.Site
+      description: 'Asset Site'
+      type: String
+    - contextPath: Balbix.Assets.LastObserved
+      description: 'Last Observed Date'
+      type: Date
+    - contextPath: Balbix.Assets.FirstObserved
+      description: 'First Observed Date'
+      type: Date
+    - contextPath: Balbix.Assets.LastProcessed
+      description: 'Last Processed Date'
+      type: Date
+    - contextPath: Balbix.Assets.Roles
+      description: 'Asset Roles'
+      type: String
+    - contextPath: Balbix.Assets.Ports
+      description: 'Asset Ports'
+      type: String
+    - contextPath: Balbix.Assets.TAGS
+      description: 'Asset Tags'
+      type: String
+    - contextPath: Balbix.Assets.InterfaceInfo
+      description: 'Asset Interface Info'
+      type: String
+    - contextPath: Balbix.Assets.ActiveIssues
+      description: 'Number of Active Issues'
+      type: Number
+    - contextPath: Balbix.Assets.CVEs
+      description: 'Count of CVEs'
+      type: Number
+    - contextPath: Balbix.Assets.RebootPendingStatus
+      description: 'Reboot Pending Status'
+      type: String
+    - contextPath: Balbix.Assets.UptimeInDays
+      description: 'Uptime in Days'
+      type: Number
+    - contextPath: Balbix.Assets.Observers
+      description: 'Asset Observers'
+      type: String
+    - contextPath: Balbix.Assets.Users
+      description: 'Asset Users'
+      type: String
+
+  runonce: false
+  script: '-'
+  type: python
+  subtype: python3
+  dockerimage: demisto/python3:3.10.12.63474
+fromversion: 5.5.0
+tests:
+- No tests (auto formatted)

@@ -1,0 +1,20 @@
+{
+    "name": "Balbix",
+    "description": "Balbix Cyber Risk Management",
+    "support": "partner",
+    "currentVersion": "1.0.0",
+    "author": "Matthew Chadder",
+    "url": "https://balbix.com",
+    "email": "",
+    "categories": [
+        "Data Enrichment & Threat Intelligence"
+    ],
+    "tags": [],
+    "useCases": [],
+    "keywords": [],
+    "marketplaces": [
+        "xsoar",
+        "marketplacev2"
+    ],
+    "githubUser": []
+}
