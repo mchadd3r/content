@@ -1,0 +1,24 @@
+{
+    "id": "BalbixBreachLikelihood",
+    "version": -1,
+    "name": "Balbix Breach Likelihood",
+    "dataType": "number",
+    "query": "type:Balbix",
+    "widgetType": "indicator",
+    "params": {
+        "header": true,
+        "footer": false,
+        "prefix": "",
+        "suffix": "%",
+        "number": {
+            "type": "headline",
+            "format": "percentage"
+        }
+    },
+    "layout": {
+        "x": 0,
+        "y": 0,
+        "w": 2,
+        "h": 2
+    }
+}

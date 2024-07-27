@@ -1,5 +1,6 @@
 import demistomock as demisto  # noqa: F401
 from CommonServerPython import *  # noqa: F401
+
 """Balbix Integration for Cortex XSOAR
 Development release 1.0
 MAKE SURE YOU REVIEW/REPLACE ALL THE COMMENTS MARKED AS "TODO"
@@ -48,8 +49,8 @@ class Client(BaseClient):
         }
         super().__init__(base_url=base_url, verify=verify, proxy=proxy, headers=header)
 
-    def http_request(self, method: str, url_suffix: str, params: Optional[dict] = None,
-                     data: Optional[dict] = None):
+    def http_request(self, method: str, url_suffix: str, params: dict | None = None,
+                     data: dict | None = None):
         """Connects to API and returns response.
            Args:
                method: The HTTP method, for example: GET, POST, and so on
@@ -105,8 +106,38 @@ def test_module(client: Client) -> str:
 '''HELPER FUNCTIONS'''
 
 
-def parse_response(raw_data: List[Dict[str, Any]], wanted_keys: List[Any], actual_keys: List[Any]) -> \
-        List[Dict[str, Any]]:
+def process_tags_field(tagslist):
+    if isinstance(tagslist, list):
+        return [{'tag': tag} for tag in tagslist if tag]
+    return []
+
+
+def process_users_field(users_list):
+    if isinstance(users_list, list):
+        return [{'username': user} for user in users_list if user]
+    return []
+
+
+def process_observers_field(observers_list):
+    if isinstance(observers_list, list):
+        return [{'observer': observer} for observer in observers_list if observer]
+    return []
+
+
+def process_roles_field(roles_list):
+    if isinstance(roles_list, list):
+        return [{'role': role} for role in roles_list if role]
+    return []
+
+
+def process_ports_field(ports_list):
+    if isinstance(ports_list, list):
+        return [{'port': port} for port in ports_list if port]
+    return []
+
+
+def parse_response(raw_data: List[dict[str, Any]], wanted_keys: List[Any], actual_keys: List[Any]) -> \
+        List[dict[str, Any]]:
     """Lists all raw data and return outputs in Demisto's format.
     Args:
         raw_data: raw response from the api.
@@ -169,7 +200,7 @@ def get_asset_details(client: Client, args: dict[str, Any]) -> CommandResults:
 
     Args:
         client (Client): The Balbix client object.
-        args (dict[str, Any]): A dictionary of arguments provided by the user.
+        args (Dict[str, Any]): A dictionary of arguments provided by the user.
             The required argument is:
             - 'hostname': The hostname to search for.
 
@@ -201,6 +232,13 @@ def get_asset_details(client: Client, args: dict[str, Any]) -> CommandResults:
             outputs={}
         )
 
+    # Process fields
+    tags_field = process_tags_field(response.get("TAGS", []))
+    users_field = process_users_field(response.get("USERS", []))
+    observers_field = process_observers_field(response.get("OBSERVERS", []))
+    roles_field = process_roles_field(response.get("Roles", []))
+    ports_field = process_ports_field(response.get("Ports", []))
+
     # Set indicator fields based on the response
     indicator_fields = {
         "bximpact": response.get("IMPACT"),
@@ -220,16 +258,16 @@ def get_asset_details(client: Client, args: dict[str, Any]) -> CommandResults:
         "bxlastobserved": response.get("LAST OBSERVED"),
         "bxfirstobserved": response.get("FIRST OBSERVED"),
         "bxlastprocessed": response.get("LAST PROCESSED"),
-        "bxroles": response.get("Roles"),
-        "bxports": response.get("Ports"),
-        "bxtags": response.get("TAGS"),
+        "bxroles": roles_field,
+        "bxports": ports_field,
+        "bxtags": tags_field,
         "bxinterfaceinfo": response.get("Interface Info (IP,MAC,SUBNET,VLAN)"),
         "bxactiveissues": response.get("ACTIVE ISSUES"),
         "bxcves": response.get("CVEs"),
         "bxrebootpendingstatus": response.get("REBOOT PENDING STATUS"),
         "bxuptimeindays": response.get("UPTIME IN DAYS"),
-        "bxobservers": response.get("OBSERVERS"),
-        "bxusers": response.get("USERS")
+        "bxobservers": observers_field,
+        "bxusers": users_field
     }
 
     # Remove None values
@@ -273,6 +311,107 @@ def get_asset_details(client: Client, args: dict[str, Any]) -> CommandResults:
     )
 
 
+def get_asset_vulnerabilities(client: Client, args: dict[str, Any]) -> CommandResults:
+    """
+    Returns vulnerabilities for the given Balbix Asset.
+
+    Args:
+        client (Client): The Balbix client object.
+        args (Dict[str, Any]): A dictionary of arguments provided by the user.
+            The required argument is:
+            - 'hostname': The hostname of the Balbix Asset.
+
+    Returns:
+        CommandResults: A CommandResults object containing the enriched data.
+    """
+    hostname = args.get('hostname')
+    if not hostname:
+        raise ValueError('Hostname must be provided')
+
+    # Fetch the existing indicator using the hostname
+    indicator_search = demisto.searchIndicators(query=f"value:\"{hostname}\"")
+    indicators = indicator_search.get('iocs', [])
+    if not indicators:
+        raise ValueError(f'Indicator with hostname {hostname} not found')
+
+    indicator = indicators[0]
+    demisto.debug(f"Fetched indicator: {json.dumps(indicator, indent=2)}")
+
+    url_suffix = f'/cves/tactical/{hostname}'
+    response = client.http_request(method='GET', url_suffix=url_suffix)
+
+    # Ensure response is a list
+    if not isinstance(response, list):
+        return CommandResults(
+            readable_output="The response is not in the expected format.",
+            outputs_prefix="Balbix.Assets.Vulnerabilities",
+            outputs_key_field="Name",
+            outputs={}
+        )
+
+    if not response:
+        return CommandResults(
+            readable_output="No vulnerabilities found for the provided hostname.",
+            outputs_prefix="Balbix.Assets.Vulnerabilities",
+            outputs_key_field="Name",
+            outputs={}
+        )
+
+    # Process the response to create a list of vulnerabilities
+    vulnerabilities = []
+    for vuln in response:
+        vulnerabilities.append({
+            "Name": vuln.get("Name"),
+            "Product": vuln.get("Product"),
+            "Vendor": vuln.get("Vendor"),
+            "Version": vuln.get("Version"),
+            "Product Type": vuln.get("Product Type"),
+            "Strategic Fix": vuln.get("Strategic Fix"),
+            "Tactical Fixes": vuln.get("Tactical Fixes"),
+            "CVE": vuln.get("CVE"),
+            "CVSS Version 2.0 Score": vuln.get("CVSS Version 2.0 Score"),
+            "CVSS Version 2.0 Severity": vuln.get("CVSS Version 2.0 Severity"),
+            "CVSS Version 3.x Score": vuln.get("CVSS Version 3.x Score"),
+            "CVSS Version 3.x Severity": vuln.get("CVSS Version 3.x Severity"),
+            "CVE Tag": vuln.get("CVE Tag"),
+            "First Detected Time": vuln.get("First Detected Time"),
+            "Balbix Score": vuln.get("Balbix Score"),
+            "Balbix Rank": vuln.get("Balbix Rank"),
+            "Risk Accepted": vuln.get("Risk Accepted")
+        })
+
+    # Update the existing indicator with the vulnerabilities
+    # update_result = demisto.executeCommand(
+    #     "setIndicator",
+    #     {
+    #         "value": hostname,
+    #         "customFields": {
+    #             "bxassetvulnerabilities": vulnerabilities
+    #         }
+    #     }
+    # )
+
+    # if isError(update_result):
+    #     return_error(f"Failed to update indicator: {get_error(update_result)}")
+
+    # Create a readable output
+    headers = [
+        "Name", "Product", "Vendor", "Version", "Product Type", "Strategic Fix", "Tactical Fixes",
+        "CVE", "CVSS Version 2.0 Score", "CVSS Version 2.0 Severity", "CVSS Version 3.x Score",
+        "CVSS Version 3.x Severity", "CVE Tag", "First Detected Time", "Balbix Score",
+        "Balbix Rank", "Risk Accepted"
+    ]
+    readable_output = tableToMarkdown("Balbix Asset Vulnerabilities", vulnerabilities, headers=headers)
+
+    return CommandResults(
+        readable_output=readable_output,
+        outputs_prefix="Balbix.Assets.Vulnerabilities",
+        outputs_key_field="Name",
+        outputs=vulnerabilities,
+        raw_response=response
+    )
+
+
 ''' MAIN FUNCTION '''
 
 
@@ -295,84 +434,22 @@ def main():
 
     demisto.debug(f'Command being called is {command}')
 
-    commands: dict[str, Callable[[Client, dict[str, str]], tuple[str, dict[Any, Any], list[Any]]]] = {
-        # 'balbix-search-vulnerabilities': search_vulnerabilities,
-        # 'balbix-get-connectors': get_connectors,
-        # 'balbix-run-connector': run_connector,
-        # 'balbix-search-fixes': search_fixes,
-        # 'balbix-update-vulnerability': update_vulnerability,
-        # 'balbix-get-asset-vulnerabilities': get_asset_vulnerabilities
-        # 'balbix-add-tag': add_tags,
-        # 'balbix-delete-tag': delete_tags,
-        # 'balbix-get-connector-runs': get_connector_runs
+    commands: dict[str, Callable[[Client, dict[str, str]], CommandResults]] = {
+        'balbix-get-asset-details': get_asset_details,
+        'balbix-get-asset-vulnerabilities': get_asset_vulnerabilities
     }
     try:
         if command in commands:
-            return_outputs(*commands[command](client, args))
+            return_results(commands[command](client, args))
         elif command == "test-module":
             result = test_module(client)
             return_results(result)
-        # elif command == "balbix-update-asset":
-        #     return_results(update_asset_command(client, args))
-        elif command == "balbix-get-asset-details":
-            return_results(get_asset_details(client, args))
-        # elif command == "balbix-search-assets-by-external-id":
-        #     return_results(search_assets_by_external_id_command(client, args))
         else:
             raise NotImplementedError(f"Command {command} is not implemented.")
 
     except Exception as err:
         return_error(f"Failed to execute {command} command.\nError:\n{err!s}")
 
-
-# def main() -> None:
-#     """main function, parses params and runs command functions
-
-#     :return:
-#     :rtype:
-#     """
-
-#     # TODO: make sure you properly handle authentication
-#     # api_key = demisto.params().get('credentials', {}).get('password')
-
-#     # get the service API url
-#     base_url = urljoin(demisto.params()['url'], '/api/v1')
-
-#     # if your Client class inherits from BaseClient, SSL verification is
-#     # handled out of the box by it, just pass ``verify_certificate`` to
-#     # the Client constructor
-#     verify_certificate = not demisto.params().get('insecure', False)
-
-#     # if your Client class inherits from BaseClient, system proxy is handled
-#     # out of the box by it, just pass ``proxy`` to the Client constructor
-#     proxy = demisto.params().get('proxy', False)
-
-#     demisto.debug(f'Command being called is {demisto.command()}')
-#     try:
-
-#         # TODO: Make sure you add the proper headers for authentication
-#         # (i.e. "Authorization": {api key})
-#         headers: dict = {}
-
-#         client = Client(
-#             base_url=base_url,
-#             verify=verify_certificate,
-#             headers=headers,
-#             proxy=proxy)
-
-#         if demisto.command() == 'test-module':
-#             # This is the call made when pressing the integration Test button.
-#             result = test_module(client)
-#             return_results(result)
-
-#         # TODO: REMOVE the following dummy command case:
-#         elif demisto.command() == 'baseintegration-dummy':
-#             return_results(baseintegration_dummy_command(client, demisto.args()))
-#         # TODO: ADD command cases for the commands you will implement
-
-#     # Log exceptions and return errors
-#     except Exception as e:
-#         return_error(f'Failed to execute {demisto.command()} command.\nError:\n{str(e)}')
 
 ''' ENTRY POINT '''
 

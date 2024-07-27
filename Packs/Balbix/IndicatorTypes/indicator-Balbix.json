@@ -42,6 +42,7 @@
         "indicator_bxrebootpendingstatus",
         "indicator_bxuptimeindays",
         "indicator_bxobservers",
-        "indicator_bxusers"
+        "indicator_bxusers",
+        "indicator_bxassetvulnerabilities"
     ]
 }

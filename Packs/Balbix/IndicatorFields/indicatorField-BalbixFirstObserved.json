@@ -1,19 +1,19 @@
 {
     "associatedToAll": false,
     "associatedTypes": [
-        "Balbix"
+        "Balbix Asset"
     ],
     "caseInsensitive": true,
-    "cliName": "bxscore",
+    "cliName": "bxfirstobserved",
     "closeForm": false,
     "content": true,
     "editForm": true,
     "group": 2,
     "hidden": false,
-    "id": "indicator_bxscore",
+    "id": "indicator_bxfirstobserved",
     "isReadOnly": false,
     "locked": false,
-    "name": "Balbix Score",
+    "name": "Balbix First Observed",
     "neverSetAsRequired": false,
     "openEnded": false,
     "ownerOnly": false,
@@ -21,7 +21,7 @@
     "sla": 0,
     "system": false,
     "threshold": 72,
-    "type": "shortText",
+    "type": "date",
     "unmapped": false,
     "unsearchable": true,
     "useAsKpi": false,

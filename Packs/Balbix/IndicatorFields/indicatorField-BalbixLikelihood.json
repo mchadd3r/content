@@ -21,7 +21,7 @@
     "sla": 0,
     "system": false,
     "threshold": 72,
-    "type": "shortText",
+    "type": "number",
     "unmapped": false,
     "unsearchable": true,
     "useAsKpi": false,

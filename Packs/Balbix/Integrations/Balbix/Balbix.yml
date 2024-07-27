@@ -118,7 +118,64 @@ script:
     - contextPath: Balbix.Assets.Users
       description: 'Asset Users'
       type: String
-
+  - arguments:
+    - description: 'The Balbix Asset hostname to enrich.'
+      name: hostname
+      required: true
+    description: 'Enriches a Balbix Asset with its vulnerabilities'
+    name: balbix-get-asset-vulnerabilities
+    outputs:
+    - contextPath: Balbix.Assets.Vulnerabilities.Name
+      description: 'Vulnerability Name'
+      type: String
+    - contextPath: Balbix.Assets.Vulnerabilities.Product
+      description: 'Product Name'
+      type: String
+    - contextPath: Balbix.Assets.Vulnerabilities.Vendor
+      description: 'Vendor Name'
+      type: String
+    - contextPath: Balbix.Assets.Vulnerabilities.Version
+      description: 'Product Version'
+      type: String
+    - contextPath: Balbix.Assets.Vulnerabilities.ProductType
+      description: 'Product Type'
+      type: String
+    - contextPath: Balbix.Assets.Vulnerabilities.StrategicFix
+      description: 'Strategic Fix'
+      type: String
+    - contextPath: Balbix.Assets.Vulnerabilities.TacticalFixes
+      description: 'Tactical Fixes'
+      type: String
+    - contextPath: Balbix.Assets.Vulnerabilities.CVE
+      description: 'CVE Identifier'
+      type: String
+    - contextPath: Balbix.Assets.Vulnerabilities.CVSSVersion2Score
+      description: 'CVSS Version 2.0 Score'
+      type: Number
+    - contextPath: Balbix.Assets.Vulnerabilities.CVSSVersion2Severity
+      description: 'CVSS Version 2.0 Severity'
+      type: String
+    - contextPath: Balbix.Assets.Vulnerabilities.CVSSVersion3Score
+      description: 'CVSS Version 3.x Score'
+      type: Number
+    - contextPath: Balbix.Assets.Vulnerabilities.CVSSVersion3Severity
+      description: 'CVSS Version 3.x Severity'
+      type: String
+    - contextPath: Balbix.Assets.Vulnerabilities.CVETag
+      description: 'CVE Tag'
+      type: String
+    - contextPath: Balbix.Assets.Vulnerabilities.FirstDetectedTime
+      description: 'First Detected Time'
+      type: Date
+    - contextPath: Balbix.Assets.Vulnerabilities.BalbixScore
+      description: 'Balbix Score'
+      type: Number
+    - contextPath: Balbix.Assets.Vulnerabilities.BalbixRank
+      description: 'Balbix Rank'
+      type: Number
+    - contextPath: Balbix.Assets.Vulnerabilities.RiskAccepted
+      description: 'Risk Accepted'
+      type: String
   runonce: false
   script: '-'
   type: python
