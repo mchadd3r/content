@@ -1,0 +1,47 @@
+{
+    "associatedToAll": false,
+    "associatedTypes": [
+        "Balbix Asset"
+    ],
+    "caseInsensitive": true,
+    "cliName": "bxgroups",
+    "closeForm": false,
+    "content": true,
+    "editForm": true,
+    "group": 2,
+    "hidden": false,
+    "id": "indicator_bxgroups",
+    "isReadOnly": false,
+    "locked": false,
+    "name": "Balbix Asset Groups",
+    "neverSetAsRequired": false,
+    "openEnded": false,
+    "ownerOnly": false,
+    "required": false,
+    "sla": 0,
+    "system": false,
+    "threshold": 72,
+    "type": "grid",
+    "unmapped": false,
+    "unsearchable": true,
+    "useAsKpi": false,
+    "version": -1,
+    "fromVersion": "6.2.0",
+    "columns": [
+        {
+            "displayName": "Tag",
+            "fieldCalcScript": "",
+            "isDefault": true,
+            "isReadOnly": false,
+            "key": "tag",
+            "required": false,
+            "script": "",
+            "selectValues": null,
+            "type": "shortText",
+            "width": 150
+        }
+    ],
+    "defaultRows": [
+        {}
+    ]
+}

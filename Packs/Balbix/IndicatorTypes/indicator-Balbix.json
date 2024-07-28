@@ -16,9 +16,7 @@
     "fromVersion": "6.2.0",
     "layout": "Balbix Asset",
     "customFields": [
-        "indicator_bximpact",
-        "indicator_bxlikelihood",
-        "indicator_bxrisk",
+        "indicator_bxdevid",
         "indicator_bxmacaddresses",
         "indicator_bxipaddresses",
         "indicator_bxserialnumber",

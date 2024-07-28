@@ -1,9 +1,5 @@
-import demistomock as demisto  # noqa: F401
-from CommonServerPython import *  # noqa: F401
-
 """Balbix Integration for Cortex XSOAR
 Development release 1.0
-MAKE SURE YOU REVIEW/REPLACE ALL THE COMMENTS MARKED AS "TODO"
 
 Developer Documentation: https://xsoar.pan.dev/docs/welcome
 Code Conventions: https://xsoar.pan.dev/docs/integrations/code-conventions
@@ -11,14 +7,11 @@ Linting: https://xsoar.pan.dev/docs/integrations/linting
 
 """
 
-from CommonServerUserPython import *  # noqa
-
-import urllib3
-from typing import Any
+import demistomock as demisto  # noqa: F401
+from CommonServerPython import *  # noqa: F401
+import base64
+import requests
 from collections.abc import Callable
-
-# Disable insecure warnings
-urllib3.disable_warnings()
 
 
 ''' CONSTANTS '''
@@ -29,284 +22,272 @@ DATE_FORMAT = '%Y-%m-%dT%H:%M:%SZ'  # ISO8601 format with UTC, default in XSOAR
 
 
 class Client(BaseClient):
-    def __init__(self, base_url: str, verify: bool, proxy: bool):
-        # Retrieve credentials from the integration parameters
-        credentials = demisto.params().get('credentials', {})
-        username = credentials.get('identifier')
-        password = credentials.get('password')
+    def __init__(self, base_url: str, verify: bool, client_api_key: str):
+        super().__init__(base_url=base_url, verify=verify)
+
+        self.token = self.retrieve_auth_token()
+        self.client_api_key = client_api_key
+
+    def retrieve_auth_token(self) -> str:
+        api_key = demisto.params().get('credentials', {}).get('password')
+
+        # Retrieve basic auth credentials
+        basic_credentials = demisto.params().get('basic_credentials', {})
+        username = basic_credentials.get('identifier')
+        password = basic_credentials.get('password')
 
         if not username or not password:
-            raise ValueError('Username or Password is missing in the credentials.')
-
-        # Encode credentials in base64 for Basic Auth
+            raise DemistoException('Username and password must be provided.')
         creds = f"{username}:{password}"
         encoded_credentials = base64.b64encode(creds.encode()).decode()
-
-        header = {
+        headers = {
             "Authorization": f"Basic {encoded_credentials}",
             "Content-Type": "application/json",
             'Accept': 'application/json'
         }
-        super().__init__(base_url=base_url, verify=verify, proxy=proxy, headers=header)
+        params = {'key': api_key}
+        response = requests.request(
+            'GET',
+            f'{self._base_url}/apis/v1/basic_token',
+            headers=headers,
+            params=params,
+            verify=self._verify
+        )
+        if response.status_code != 200:
+            raise DemistoException(
+                f'Failed to retrieve auth token. Status code: {response.status_code}. Error: {response.text}')
+        return response.text
 
-    def http_request(self, method: str, url_suffix: str, params: dict | None = None,
-                     data: dict | None = None):
-        """Connects to API and returns response.
-           Args:
-               method: The HTTP method, for example: GET, POST, and so on
-               url_suffix: The API endpoint.
-               params: URL parameters to specify the query.
-               data: The data to send in a specific request.
-           Returns:
-               Response from the API.
-           """
+    def http_request(self, method: str, url_suffix: str, params: dict = None, data: dict = None):
+        headers = {
+            "Authorization": self.token,
+            "Client-API-Key": self.client_api_key,
+            "Content-Type": "application/json",
+            'Accept': 'application/json'
+        }
+        # data = {
+        #     "page_offset": 0,
+        #     "page_limit": 10
+        # }
         url = f'{self._base_url}{url_suffix}'
         try:
             response = requests.request(
                 method,
                 url,
-                headers=self._headers,
+                headers=headers,
                 params=params,
                 json=data,
-                verify=self._verify,
+                verify=self._verify
             )
         except requests.exceptions.SSLError as err:
-            raise DemistoException(f'Connection error in the API call to Balbix.\n'
-                                   f'Check your not secure parameter.\n\n{err}')
+            raise DemistoException(f'Connection error in the API call.\nCheck your not secure parameter.\n\n{err}')
         except requests.ConnectionError as err:
-            raise DemistoException(f'Connection error in the API call to Balbix.\n'
-                                   f'Check your Server URL parameter.\n\n{err}')
-        try:
-            response_dict = response.json() if response.text else {}
-            if not response.ok:
-                if response_dict.get('error') == "unauthorized":
-                    raise DemistoException(f'Connection error in the API call to Balbix.\n'
-                                           f'Check your API Key parameter.\n\n{response_dict.get("message")}')
-                else:
-                    raise DemistoException(
-                        f'API call to Balbix failed with error code: {response.status_code}.\n'
-                        f'Error: {response_dict.get("error")}\n'
-                        f'Message: {response_dict.get("message")}'
-                    )
-            elif response.status_code == 204:
-                return {'status': 'success'}
-            return response_dict
-        except TypeError:
-            raise Exception(f'Error in API call to Balbix, could not parse result [{response.status_code}]')
+            raise DemistoException(f'Connection error in the API call.\nCheck your Server URL parameter.\n\n{err}')
+        if response.status_code not in {200, 204}:
+            raise DemistoException(f'API call failed with error code: {response.status_code}.\nError: {response.text}')
+        return response.json() if response.text else {}
 
 
 def test_module(client: Client) -> str:
     """
-    Tests the connection to the Balbix v2 API by performing a basic GET request.
+    Tests the connection to the API by performing a basic GET request with the API key.
     """
-    client.http_request('GET', '/assets/stats')
-    return 'ok'
+    url_suffix = '/apis/v1/bx-it/asset/asset_list'
+    request_body = {
+        "page_offset": 0,
+        "page_limit": 10
+    }
 
-
-'''HELPER FUNCTIONS'''
-
-
-def process_tags_field(tagslist):
-    if isinstance(tagslist, list):
-        return [{'tag': tag} for tag in tagslist if tag]
-    return []
-
-
-def process_users_field(users_list):
-    if isinstance(users_list, list):
-        return [{'username': user} for user in users_list if user]
-    return []
-
-
-def process_observers_field(observers_list):
-    if isinstance(observers_list, list):
-        return [{'observer': observer} for observer in observers_list if observer]
-    return []
-
-
-def process_roles_field(roles_list):
-    if isinstance(roles_list, list):
-        return [{'role': role} for role in roles_list if role]
-    return []
-
-
-def process_ports_field(ports_list):
-    if isinstance(ports_list, list):
-        return [{'port': port} for port in ports_list if port]
-    return []
-
-
-def parse_response(raw_data: List[dict[str, Any]], wanted_keys: List[Any], actual_keys: List[Any]) -> \
-        List[dict[str, Any]]:
-    """Lists all raw data and return outputs in Demisto's format.
-    Args:
-        raw_data: raw response from the api.
-        wanted_keys: The keys as we would like them to be.
-        actual_keys :The keys as they are in raw response.
-    Returns:
-        Specific Keys from the raw data.
-    """
-
-    context_list = []
-    for raw in raw_data:
-        context = {}
-        for wanted_key, actual_key in zip(wanted_keys, actual_keys):
-            if isinstance(wanted_key, list):
-                inner_raw = raw.get(actual_key[0])
-                if inner_raw:
-                    lst_inner = []
-                    for in_raw in inner_raw:
-                        inner_dict = {}
-                        for inner_wanted_key, inner_actual_key in zip(wanted_key[1:], actual_key[1:]):
-                            inner_dict.update({inner_wanted_key: in_raw.get(inner_actual_key)})
-                        lst_inner.append(inner_dict)
-                    context.update({wanted_key[0]: lst_inner})
-            else:
-                context.update({wanted_key: raw.get(actual_key)})
-        context_list.append(context)
-    return context_list
-
-
-def create_asset_table(response_data):
-    # Define the column order
-    headers = [
-        "NAME", "IMPACT", "LIKELIHOOD", "RISK", "MAC Addresses", "IP Addresses",
-        "SERIAL NUMBER", "GEO LOCATION", "ASSET TYPE", "ASSET SUBTYPE",
-        "OPERATING SYSTEM", "OS PATCH STATUS", "LAST PATCH DATE",
-        "MANUFACTURER", "SITE", "LAST OBSERVED", "FIRST OBSERVED",
-        "LAST PROCESSED", "Roles", "Ports", "TAGS",
-        "Interface Info (IP,MAC,SUBNET,VLAN)", "ACTIVE ISSUES",
-        "CVEs", "REBOOT PENDING STATUS", "UPTIME IN DAYS", "OBSERVERS", "USERS"
-    ]
-
-    # Generate the markdown table
-    markdown = tableToMarkdown("API Response", response_data, headers=headers)
-
-    # Return the CommandResults
-    return CommandResults(
-        readable_output=markdown,
-        outputs_prefix="Balbix.Response",
-        outputs_key_field="NAME",
-        outputs=response_data
-    )
+    try:
+        response = client.http_request(method='POST', url_suffix=url_suffix, data=request_body)
+        if response:
+            return 'ok'
+        return 'Test failed: No response received'
+    except Exception as e:
+        return f'Test failed: {str(e)}'
 
 
 ''' COMMAND FUNCTIONS '''
 
 
-def get_asset_details(client: Client, args: dict[str, Any]) -> CommandResults:
+def get_asset_id(client: Client, args: dict[str, Any]) -> CommandResults:
     """
-    Search for assets in Balbix based on the provided hostname and create a custom indicator.
+    Search for the Device ID which uniquely identifies a Balbix Asset
 
     Args:
         client (Client): The Balbix client object.
         args (Dict[str, Any]): A dictionary of arguments provided by the user.
-            The required argument is:
+            The optional arguments are:
             - 'hostname': The hostname to search for.
+            - 'ip': The IP Address to search for.
+            - 'mac': The MAC Address to search for.
 
     Returns:
         CommandResults: A CommandResults object containing the raw JSON results of the search.
     """
     hostname = args.get('hostname')
-    if not hostname:
-        raise ValueError('Hostname must be provided')
+    ip = args.get('ip')
+    mac = args.get('mac')
 
-    url_suffix = f'/assets/{hostname}'
-    response = client.http_request(method='GET', url_suffix=url_suffix)
+    if not (hostname or ip or mac):
+        raise ValueError('At least one of hostname, IP address, or MAC address must be provided')
+
+    request_body = {
+        "page_offset": 0,
+        "page_limit": 10
+    }
+
+    if hostname:
+        request_body["host_name"] = hostname
+    if ip:
+        request_body["ip"] = ip
+    if mac:
+        request_body["mac"] = mac
+
+    url_suffix = '/apis/v1/bx-it/asset/asset_list'
+    response = client.http_request(method='POST', url_suffix=url_suffix, data=request_body)
 
     # Ensure response is a dictionary
     if not isinstance(response, dict):
         return CommandResults(
             readable_output="The response is not in the expected format.",
             outputs_prefix="Balbix.Assets",
-            outputs_key_field="NAME",
+            outputs_key_field="dev_id",
             outputs={}
         )
 
-    asset_name = response.get("NAME")
-    if not asset_name:
+    # Extract the dev_id from the data array
+    data = response.get('data', [])
+    if not data:
         return CommandResults(
-            readable_output="The response does not contain a valid asset name.",
+            readable_output="The response does not contain any data.",
             outputs_prefix="Balbix.Assets",
-            outputs_key_field="NAME",
+            outputs_key_field="dev_id",
             outputs={}
         )
 
-    # Process fields
-    tags_field = process_tags_field(response.get("TAGS", []))
-    users_field = process_users_field(response.get("USERS", []))
-    observers_field = process_observers_field(response.get("OBSERVERS", []))
-    roles_field = process_roles_field(response.get("Roles", []))
-    ports_field = process_ports_field(response.get("Ports", []))
+    device_ids = [item.get('dev_id') for item in data if item.get('dev_id')]
 
-    # Set indicator fields based on the response
+    if not device_ids:
+        return CommandResults(
+            readable_output="No valid dev_id found in the response.",
+            outputs_prefix="Balbix.Assets",
+            outputs_key_field="dev_id",
+            outputs={}
+        )
+
+    return CommandResults(
+        readable_output=f"Device IDs: {', '.join(map(str, device_ids))}",
+        outputs_prefix="Balbix.Assets",
+        outputs_key_field="dev_id",
+        outputs={"Balbix.Assets": [{"dev_id": dev_id} for dev_id in device_ids]}
+    )
+
+# TODO Add roles, active issues, cves, users
+
+
+def get_asset_details(client: Client, args: dict[str, Any]) -> CommandResults:
+    device_id = args.get('device_id')
+    if not device_id:
+        raise ValueError('Balbix Device ID must be provided')
+
+    url_suffix = f'/apis/v1/bx-it/asset/asset_details/{device_id}'
+    response = client.http_request(method='GET', url_suffix=url_suffix)
+
+    if not isinstance(response, dict):
+        return CommandResults(
+            readable_output="The response is not in the expected format.",
+            outputs_prefix="Balbix.Asset",
+            outputs_key_field="Hostname",
+            outputs={}
+        )
+
+    data = response.get('data')
+    if not data or not isinstance(data, dict):
+        return CommandResults(
+            readable_output="The response does not contain valid asset details.",
+            outputs_prefix="Balbix.Asset",
+            outputs_key_field="Hostname",
+            outputs={}
+        )
+
+    host_name = data.get('host_name')
+    if not host_name:
+        return CommandResults(
+            readable_output="No valid host_name found in the response.",
+            outputs_prefix="Balbix.Asset",
+            outputs_key_field="Hostname",
+            outputs={}
+        )
+
+    # Set indicator fields based on the response with default values
     indicator_fields = {
-        "bximpact": response.get("IMPACT"),
-        "bxlikelihood": response.get("LIKELIHOOD"),
-        "bxrisk": response.get("RISK"),
-        "bxmacaddresses": response.get("MAC Addresses"),
-        "bxipaddresses": response.get("IP Addresses"),
-        "bxserialnumber": response.get("SERIAL NUMBER"),
-        "bxgeolocation": response.get("GEO LOCATION"),
-        "bxassettype": response.get("ASSET TYPE"),
-        "bxassetsubtype": response.get("ASSET SUBTYPE"),
-        "bxos": response.get("OPERATING SYSTEM"),
-        "bxospatchstatus": response.get("OS PATCH STATUS"),
-        "bxlastpatchdate": response.get("LAST PATCH DATE"),
-        "bxmanufacturer": response.get("MANUFACTURER"),
-        "bxsite": response.get("SITE"),
-        "bxlastobserved": response.get("LAST OBSERVED"),
-        "bxfirstobserved": response.get("FIRST OBSERVED"),
-        "bxlastprocessed": response.get("LAST PROCESSED"),
-        "bxroles": roles_field,
-        "bxports": ports_field,
-        "bxtags": tags_field,
-        "bxinterfaceinfo": response.get("Interface Info (IP,MAC,SUBNET,VLAN)"),
-        "bxactiveissues": response.get("ACTIVE ISSUES"),
-        "bxcves": response.get("CVEs"),
-        "bxrebootpendingstatus": response.get("REBOOT PENDING STATUS"),
-        "bxuptimeindays": response.get("UPTIME IN DAYS"),
-        "bxobservers": observers_field,
-        "bxusers": users_field
+        "bxdevid": data.get("dev_id", ""),
+        "bxmacaddresses": data.get("mac", ""),
+        "bxipaddresses": data.get("ip", ""),
+        "bxserialnumber": data.get("serial_number", ""),
+        "bxgeolocation": data.get("location_city", ""),
+        "bxassettype": data.get("device_type", ""),
+        "bxtags": data.get("device_tags", []),
+        "bxgroups": data.get("groups", []),
+        "bxassetsubtype": data.get("device_subtype", ""),
+        "bxos": data.get("operatingsystem", ""),
+        "bxospatchstatus": data.get("os_patch_state", ""),
+        "bxmanufacturer": data.get("system_manufacturer", ""),
+        "bxsite": data.get("site_name", ""),
+        "bxlastprocessed": data.get("updated_at", ""),
+        "bxinterfaceinfo": data.get("interfaces", []),
+        "bxrebootpendingstatus": data.get("is_reboot_pending", ""),
+        "bxuptimeindays": (data.get("uptime_mins", 0) or 0) // 1440  # converting minutes to days
     }
 
     # Remove None values
-    indicator_fields = {k: v for k, v in indicator_fields.items() if v is not None}
+    indicator_fields = {k: v for k, v in indicator_fields.items() if v}
 
     # Create the indicator in XSOAR
     try:
         demisto.createIndicators([{
             "type": "Balbix Asset",
-            "value": asset_name,
+            "value": host_name,
             "fields": indicator_fields
         }])
+        success_message = f"Successfully created indicator for host_name: {host_name}"
     except Exception as e:
         return CommandResults(
             readable_output=f"Failed to create indicator: {str(e)}",
-            outputs_prefix="Balbix.Assets",
-            outputs_key_field="NAME",
+            outputs_prefix="Balbix.Asset",
+            outputs_key_field="Hostname",
             outputs=response
         )
 
-    # Define the column order for the markdown table
-    headers = [
-        "NAME", "IMPACT", "LIKELIHOOD", "RISK", "MAC Addresses", "IP Addresses",
-        "SERIAL NUMBER", "GEO LOCATION", "ASSET TYPE", "ASSET SUBTYPE",
-        "OPERATING SYSTEM", "OS PATCH STATUS", "LAST PATCH DATE",
-        "MANUFACTURER", "SITE", "LAST OBSERVED", "FIRST OBSERVED",
-        "LAST PROCESSED", "Roles", "Ports", "TAGS",
-        "Interface Info (IP,MAC,SUBNET,VLAN)", "ACTIVE ISSUES",
-        "CVEs", "REBOOT PENDING STATUS", "UPTIME IN DAYS", "OBSERVERS", "USERS"
-    ]
+    # Define the context output to match the YAML context paths
+    context_output = {
+        "Hostname": data.get("host_name", ""),
+        "DeviceID": data.get("dev_id", ""),
+        "MACAddresses": data.get("mac", ""),
+        "IPAddresses": data.get("ip", ""),
+        "SerialNumber": data.get("serial_number", ""),
+        "GeoLocation": data.get("location_city", ""),
+        "AssetType": data.get("device_type", ""),
+        "AssetSubType": data.get("device_subtype", ""),
+        "OperatingSystem": data.get("operatingsystem", ""),
+        "OSPatchStatus": data.get("os_patch_state", ""),
+        "Manufacturer": data.get("system_manufacturer", ""),
+        "Site": data.get("site_name", ""),
+        "LastProcessed": data.get("updated_at", ""),
+        "InterfaceInfo": data.get("interfaces", []),
+        "RebootPendingStatus": data.get("is_reboot_pending", ""),
+        "UptimeInDays": (data.get("uptime_mins", 0) or 0) // 1440  # converting minutes to days
+    }
 
     # Generate the markdown table
-    markdown = tableToMarkdown("Asset Details", response, headers=headers)
+    markdown = tableToMarkdown("Asset Details", context_output)
 
     return CommandResults(
-        readable_output=markdown,
-        outputs_prefix="Balbix.Assets",
-        outputs_key_field="NAME",
-        outputs=response,
+        readable_output=f"{success_message}\n\n{markdown}",
+        outputs_prefix="Balbix.Asset",
+        outputs_key_field="Hostname",
+        outputs={"Balbix.Asset": context_output},
         raw_response=response
     )
 
@@ -380,20 +361,6 @@ def get_asset_vulnerabilities(client: Client, args: dict[str, Any]) -> CommandRe
             "Risk Accepted": vuln.get("Risk Accepted")
         })
 
-    # Update the existing indicator with the vulnerabilities
-    # update_result = demisto.executeCommand(
-    #     "setIndicator",
-    #     {
-    #         "value": hostname,
-    #         "customFields": {
-    #             "bxassetvulnerabilities": vulnerabilities
-    #         }
-    #     }
-    # )
-
-    # if isError(update_result):
-    #     return_error(f"Failed to update indicator: {get_error(update_result)}")
-
     # Create a readable output
     headers = [
         "Name", "Product", "Vendor", "Version", "Product Type", "Strategic Fix", "Tactical Fixes",
@@ -418,40 +385,32 @@ def get_asset_vulnerabilities(client: Client, args: dict[str, Any]) -> CommandRe
 def main():
     command = demisto.command()
     params = demisto.params()
-    args = demisto.args()
-
-    # api = params.get('credentials_key', {}).get('password') or params.get('key')
-    # if not api:
-    #     raise DemistoException('Balbix API key must be provided.')
-    # Service base URL
-    base_url = params.get('url', '')
-    # Should we use SSL
+    base_url = params.get('url')
     use_ssl = not params.get('insecure', False)
-    # Should we use system proxy settings
-    use_proxy = params.get('proxy', False)
-    # Initialize Client object
-    client = Client(base_url=base_url, verify=use_ssl, proxy=use_proxy)
+
+    client_api_key = demisto.params().get('client_key')
+
+    client = Client(base_url=base_url, verify=use_ssl, client_api_key=client_api_key)
 
     demisto.debug(f'Command being called is {command}')
 
     commands: dict[str, Callable[[Client, dict[str, str]], CommandResults]] = {
+        'balbix-get-asset-id': get_asset_id,
         'balbix-get-asset-details': get_asset_details,
         'balbix-get-asset-vulnerabilities': get_asset_vulnerabilities
     }
+
     try:
         if command in commands:
-            return_results(commands[command](client, args))
-        elif command == "test-module":
+            return_results(commands[command](client, demisto.args()))
+        elif command == 'test-module':
             result = test_module(client)
             return_results(result)
         else:
-            raise NotImplementedError(f"Command {command} is not implemented.")
+            raise NotImplementedError(f'Command {command} is not implemented.')
+    except Exception as e:
+        return_error(f'Failed to execute {command} command.\nError:\n{str(e)}')
 
-    except Exception as err:
-        return_error(f"Failed to execute {command} command.\nError:\n{err!s}")
-
-
-''' ENTRY POINT '''
 
 if __name__ in ('__main__', '__builtin__', 'builtins'):
     main()
